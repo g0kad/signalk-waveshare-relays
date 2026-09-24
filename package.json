@@ -1,0 +1,35 @@
+{
+  "name": "signalk-waveshare-relays",
+  "version": "0.1.0",
+  "description": "Signal K plugin to control Waveshare ESP32-S3-ETH-8DI-8RO relay boards running ESPHome",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "lib/"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk-category-digital-switching",
+    "signalk-category-hardware",
+    "waveshare",
+    "esphome",
+    "relay",
+    "switching"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "Mike G0KAD (https://github.com/g0kad)",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/g0kad/signalk-waveshare-relays#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/g0kad/signalk-waveshare-relays.git"
+  },
+  "bugs": {
+    "url": "https://github.com/g0kad/signalk-waveshare-relays/issues"
+  }
+}

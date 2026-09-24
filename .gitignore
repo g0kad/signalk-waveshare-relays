@@ -1,0 +1,4 @@
+node_modules/
+*.tgz
+# Original Node-RED flow this plugin replaces (contains local IPs)
+flows.json
