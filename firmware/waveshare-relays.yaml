@@ -20,7 +20,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: g0kad.waveshare-relays
-    version: "0.2.0"
+    version: "0.3.0"
   on_boot:
     # After globals are restored (800), before networking and web server (250)
     priority: 600
@@ -60,6 +60,16 @@ captive_portal:
 
 improv_serial:
 
+# Lets the Signal K plugin find these boards on the network.
+mdns:
+  services:
+    - service: _wsrelay
+      protocol: _tcp
+      port: 80
+      txt:
+        project: g0kad.waveshare-relays
+        version: "0.3.0"
+
 # The admin password is stored on the board, not compiled in, so every board
 # gets its own. Until one is set the board is open for setup. Once set, the web
 # UI, relay control and web OTA need user "admin" with that password, and it
@@ -87,6 +97,16 @@ script:
           ap.set_password(pass);
           wifi::global_wifi_component->set_ap(ap);
           ESP_LOGI("admin", "Admin password %s", pass.empty() ? "not set: board is open" : "set");
+          id(security_state).publish_state(pass.empty() ? "OPEN: set Admin Password" : "Protected");
+          // Amber pulse on the LED while the board is open.
+          if (pass.empty()) {
+            auto call = id(status_led).turn_on();
+            call.set_rgb(1.0, 0.45, 0.0);
+            call.set_effect("Open");
+            call.perform();
+          } else {
+            id(status_led).turn_off().perform();
+          }
 
 web_server:
   port: 80
@@ -183,10 +203,9 @@ binary_sensor:
             id(admin_password) = "";
             global_preferences->sync();
             ESP_LOGW("admin", "BOOT held: admin password cleared");
-        - script.execute: apply_admin_password
-        - light.turn_on: { id: status_led, red: 100%, green: 0%, blue: 0% }
+        - light.turn_on: { id: status_led, red: 100%, green: 0%, blue: 0%, effect: none }
         - delay: 2s
-        - light.turn_off: status_led
+        - script.execute: apply_admin_password
 
 text:
   - platform: template
@@ -212,6 +231,11 @@ light:
     num_leds: 1
     chipset: WS2812
     channel_colors: RGB
+    effects:
+      - pulse:
+          name: Open
+          transition_length: 1s
+          update_interval: 1s
 
 button:
   - platform: restart
@@ -220,6 +244,10 @@ button:
     name: Safe Mode
 
 text_sensor:
+  - platform: template
+    id: security_state
+    name: Security
+    icon: mdi:shield-lock
   - platform: ethernet_info
     ip_address:
       name: Ethernet IP
