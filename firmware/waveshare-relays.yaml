@@ -1,0 +1,230 @@
+﻿# Prebuilt firmware for the Waveshare ESP32-S3-ETH-8DI-8RO(-C), for use with
+# the signalk-waveshare-relays plugin. Entity names match the plugin defaults.
+#
+# Ethernet and Wi-Fi can both be used. Ethernet is preferred when connected;
+# Wi-Fi takes over if the cable is unplugged. Wi-Fi credentials are entered
+# when flashing (Improv serial) or through the fallback access point, which
+# starts if no network connects within 90 seconds.
+
+substitutions:
+  name: waveshare-relays
+  friendly_name: Waveshare Relays
+  # What the relays do after a power cut or reboot:
+  # RESTORE_DEFAULT_OFF, ALWAYS_OFF, RESTORE_DEFAULT_ON, ALWAYS_ON
+  relay_restore_mode: RESTORE_DEFAULT_OFF
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  # Each board gets a unique hostname, e.g. waveshare-relays-21e150.local
+  name_add_mac_suffix: true
+  project:
+    name: g0kad.waveshare-relays
+    version: "0.2.0"
+  on_boot:
+    # After globals are restored (800), before networking and web server (250)
+    priority: 600
+    then:
+      - script.execute: apply_admin_password
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+
+network:
+  priority:
+    - ethernet
+    - wifi
+
+ethernet:
+  type: W5500
+  clk_pin: GPIO15
+  mosi_pin: GPIO13
+  miso_pin: GPIO14
+  cs_pin: GPIO16
+  interrupt_pin: GPIO12
+
+wifi:
+  ap:
+    ssid: "Waveshare Relays Setup"
+
+captive_portal:
+
+improv_serial:
+
+# The admin password is stored on the board, not compiled in, so every board
+# gets its own. Until one is set the board is open for setup. Once set, the web
+# UI, relay control and web OTA need user "admin" with that password, and it
+# also becomes the setup access point's WPA2 key. Holding the BOOT button for
+# 10 seconds clears it.
+globals:
+  - id: admin_password
+    type: std::string
+    restore_value: true
+    max_restore_data_length: 64
+    initial_value: '""'
+
+script:
+  - id: apply_admin_password
+    then:
+      - lambda: |-
+          static std::string user;
+          static std::string pass;
+          pass = id(admin_password);
+          user = pass.empty() ? "" : "admin";
+          auto *base = web_server_base::global_web_server_base;
+          base->set_auth_username(user.c_str());
+          base->set_auth_password(pass.c_str());
+          auto ap = wifi::global_wifi_component->get_ap();
+          ap.set_password(pass);
+          wifi::global_wifi_component->set_ap(ap);
+          ESP_LOGI("admin", "Admin password %s", pass.empty() ? "not set: board is open" : "set");
+
+web_server:
+  port: 80
+  version: 3
+  auth:
+    type: basic
+    # Placeholders only; replaced at boot from the stored admin password.
+    username: placeholder
+    password: placeholder
+
+ota:
+  - platform: web_server
+
+safe_mode:
+
+i2c:
+  sda: GPIO42
+  scl: GPIO41
+
+pca9554:
+  - id: exio
+    address: 0x20
+
+switch:
+  - platform: gpio
+    name: Relay 1
+    pin: { pca9554: exio, number: 0 }
+    restore_mode: ${relay_restore_mode}
+  - platform: gpio
+    name: Relay 2
+    pin: { pca9554: exio, number: 1 }
+    restore_mode: ${relay_restore_mode}
+  - platform: gpio
+    name: Relay 3
+    pin: { pca9554: exio, number: 2 }
+    restore_mode: ${relay_restore_mode}
+  - platform: gpio
+    name: Relay 4
+    pin: { pca9554: exio, number: 3 }
+    restore_mode: ${relay_restore_mode}
+  - platform: gpio
+    name: Relay 5
+    pin: { pca9554: exio, number: 4 }
+    restore_mode: ${relay_restore_mode}
+  - platform: gpio
+    name: Relay 6
+    pin: { pca9554: exio, number: 5 }
+    restore_mode: ${relay_restore_mode}
+  - platform: gpio
+    name: Relay 7
+    pin: { pca9554: exio, number: 6 }
+    restore_mode: ${relay_restore_mode}
+  - platform: gpio
+    name: Relay 8
+    pin: { pca9554: exio, number: 7 }
+    restore_mode: ${relay_restore_mode}
+
+binary_sensor:
+  - platform: gpio
+    name: DI1
+    pin: { number: GPIO4, mode: INPUT_PULLUP, inverted: true }
+  - platform: gpio
+    name: DI2
+    pin: { number: GPIO5, mode: INPUT_PULLUP, inverted: true }
+  - platform: gpio
+    name: DI3
+    pin: { number: GPIO6, mode: INPUT_PULLUP, inverted: true }
+  - platform: gpio
+    name: DI4
+    pin: { number: GPIO7, mode: INPUT_PULLUP, inverted: true }
+  - platform: gpio
+    name: DI5
+    pin: { number: GPIO8, mode: INPUT_PULLUP, inverted: true }
+  - platform: gpio
+    name: DI6
+    pin: { number: GPIO9, mode: INPUT_PULLUP, inverted: true }
+  - platform: gpio
+    name: DI7
+    pin: { number: GPIO10, mode: INPUT_PULLUP, inverted: true }
+  - platform: gpio
+    name: DI8
+    pin: { number: GPIO11, mode: INPUT_PULLUP, inverted: true }
+  - platform: status
+    name: Status
+  - platform: gpio
+    id: boot_button
+    internal: true
+    pin: { number: GPIO0, mode: INPUT_PULLUP, inverted: true }
+    on_click:
+      min_length: 10s
+      max_length: 60s
+      then:
+        - lambda: |-
+            id(admin_password) = "";
+            global_preferences->sync();
+            ESP_LOGW("admin", "BOOT held: admin password cleared");
+        - script.execute: apply_admin_password
+        - light.turn_on: { id: status_led, red: 100%, green: 0%, blue: 0% }
+        - delay: 2s
+        - light.turn_off: status_led
+
+text:
+  - platform: template
+    name: Admin Password
+    mode: password
+    min_length: 8
+    max_length: 63
+    entity_category: config
+    icon: mdi:lock
+    # Never publishes a state, so the password is not sent back to clients.
+    set_action:
+      - lambda: |-
+          id(admin_password) = x;
+          global_preferences->sync();
+          ESP_LOGI("admin", "Admin password changed");
+      - script.execute: apply_admin_password
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_led
+    name: RGB LED
+    pin: GPIO38
+    num_leds: 1
+    chipset: WS2812
+    channel_colors: RGB
+
+button:
+  - platform: restart
+    name: Restart
+  - platform: safe_mode
+    name: Safe Mode
+
+text_sensor:
+  - platform: ethernet_info
+    ip_address:
+      name: Ethernet IP
+  - platform: wifi_info
+    ip_address:
+      name: Wi-Fi IP
+    ssid:
+      name: Wi-Fi SSID
