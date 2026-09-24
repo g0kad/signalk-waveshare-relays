@@ -1,7 +1,10 @@
 'use strict'
 
+const path = require('path')
 const { RelayBank } = require('./lib/bank')
 const { N2kSwitchBank } = require('./lib/n2k')
+const { Discovery } = require('./lib/discovery')
+const { PasswordStore, ADMIN_USER } = require('./lib/security')
 
 const PLUGIN_ID = 'signalk-waveshare-relays'
 const CHANNELS = 8
@@ -36,7 +39,7 @@ const boardSchema = {
     host: {
       type: 'string',
       title: 'Board address',
-      description: 'IP address or hostname of the Waveshare board, e.g. 192.168.1.129 or waveshare001.local',
+      description: 'Hostname or IP address of the board, e.g. waveshare-relays-21e150.local. Use the hostname if the board has both Ethernet and Wi-Fi, so the plugin follows it from one to the other.',
       default: ''
     },
     bankId: {
@@ -45,13 +48,18 @@ const boardSchema = {
       description: 'Unique per board. Relays are published at electrical.switches.bank.<Bank ID>.<channel>.state',
       default: 'waveshare'
     },
+    password: {
+      type: 'string',
+      title: 'Admin password',
+      description: 'Prebuilt firmware: choose a password (8 to 63 characters) and the plugin sets it on the board. To change it, change it here. Other ESPHome configs: the web_server auth password, if any.',
+      default: ''
+    },
     username: {
       type: 'string',
       title: 'Web server username',
-      description: 'Only needed if auth is set in the ESPHome web_server config',
+      description: `Leave empty for the prebuilt firmware, which uses "${ADMIN_USER}". Other ESPHome configs: the web_server auth username, if any.`,
       default: ''
     },
-    password: { type: 'string', title: 'Web server password', default: '' },
     useEventStream: {
       type: 'boolean',
       title: 'Use the ESPHome event stream for instant state updates',
@@ -127,6 +135,36 @@ const schema = {
   }
 }
 
+// The schema shown in the admin UI, listing boards found on the network.
+function schemaWithDiscovered (found, configuredHosts) {
+  if (!found.length) {
+    return {
+      ...schema,
+      description: 'No boards with the prebuilt firmware were found on the network yet. Boards with other ESPHome configs can still be added by address.'
+    }
+  }
+  const lines = found.map(b => {
+    const where = b.addresses.length ? ` (${b.addresses.join(', ')})` : ''
+    const added = configuredHosts.has(b.host) ? '' : ' (not added yet)'
+    return `${b.host}${where}${added}`
+  })
+  const host = { ...boardSchema.properties.host, examples: found.map(b => b.host) }
+  const items = { ...boardSchema, properties: { ...boardSchema.properties, host } }
+  return {
+    ...schema,
+    description: `Boards found on the network: ${lines.join('; ')}`,
+    properties: { ...schema.properties, boards: { ...schema.properties.boards, items } }
+  }
+}
+
+const uiSchema = {
+  boards: {
+    items: {
+      password: { 'ui:widget': 'password' }
+    }
+  }
+}
+
 // Fills in schema defaults, recursing into nested objects (not arrays).
 function applyDefaults (properties, value) {
   const out = {}
@@ -153,6 +191,7 @@ function normalize (options) {
     const board = applyDefaults(boardSchema.properties, raw)
     board.host = String(board.host || '').trim()
     board.bankId = String(board.bankId || '').trim()
+    board.username = String(board.username || '').trim()
     board.relays = validChannels(board.relays)
     board.inputs = validChannels(board.inputs)
     board.stateFormat = opts.stateFormat
@@ -162,15 +201,26 @@ function normalize (options) {
   return opts
 }
 
-module.exports = function (app) {
+module.exports = function (app, options = {}) {
   let runs = []
   let problems = []
+  let configuredHosts = new Set()
+  const discovery = options.discovery || new Discovery(msg => app.debug(msg))
+  const passwordStore = typeof app.getDataDirPath === 'function'
+    ? new PasswordStore(path.join(app.getDataDirPath(), 'passwords.json'))
+    : null
 
   const plugin = {
     id: PLUGIN_ID,
     name: 'Waveshare Relay Control',
     description: 'Control Waveshare ESP32-S3-ETH-8DI-8RO relays (ESPHome firmware) from Signal K and NMEA 2000',
-    schema
+    // A function so the admin UI shows the boards found so far. Opening the
+    // configuration also starts discovery if the plugin isn't running.
+    schema () {
+      discovery.start()
+      return schemaWithDiscovered(discovery.list(), configuredHosts)
+    },
+    uiSchema
   }
 
   function reportStatus () {
@@ -182,6 +232,8 @@ module.exports = function (app) {
 
   plugin.start = function (options) {
     const opts = normalize(options)
+    discovery.start()
+    configuredHosts = new Set(opts.boards.map(b => b.host.toLowerCase()))
     const bankIds = new Set()
     const instances = new Set()
     runs = []
@@ -195,7 +247,7 @@ module.exports = function (app) {
       if (bankIds.has(board.bankId)) return problems.push(`${label}: bank ID is used by another board`)
       bankIds.add(board.bankId)
 
-      const bank = new RelayBank(app, PLUGIN_ID, board)
+      const bank = new RelayBank(app, PLUGIN_ID, board, null, passwordStore)
       bank.on('status', reportStatus)
       const run = { bank, n2k: null }
       runs.push(run)
@@ -221,6 +273,7 @@ module.exports = function (app) {
     }
     runs = []
     problems = []
+    discovery.stop()
   }
 
   return plugin

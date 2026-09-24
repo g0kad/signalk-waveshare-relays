@@ -36,9 +36,10 @@ settings:
 | Setting | Default | Notes |
 |---|---|---|
 | Enabled | on | Turn a board off without deleting its settings |
-| Board address | *(required)* | IP address or hostname, e.g. `192.168.1.129` or `waveshare001.local` |
+| Board address | *(required)* | Hostname or IP address, e.g. `waveshare-relays-21e150.local` or `192.168.1.129`. Use the hostname if the board has both Ethernet and Wi-Fi, so the plugin follows it from one to the other |
 | Bank ID | `waveshare` | Must be different for each board, e.g. `fwd` and `aft` |
-| Web server username / password | empty | Only if `auth:` is set under `web_server:` in ESPHome |
+| Admin password | empty | Prebuilt firmware: 8–63 characters; the plugin sets it on the board (see below). Other ESPHome configs: the `web_server` `auth:` password, if any |
+| Web server username | empty | Leave empty for the prebuilt firmware (it uses `admin`). Other ESPHome configs: the `web_server` `auth:` username, if any |
 | Use event stream | on | Instant updates through ESPHome's `/events` |
 | Poll interval | 10 s | Full refresh; `0` disables polling |
 | Relays | `Relay 1` … `Relay 8` | Channel number, ESPHome switch name, display name |
@@ -62,6 +63,34 @@ keep working.
 The ESPHome entity names must match the `name:` values in the board's ESPHome YAML.
 With the plugin's debug logging on, every entity on the board that isn't mapped is
 logged once. That's a quick way to find the correct names.
+
+## Prebuilt firmware
+
+Boards running this project's firmware ([firmware/waveshare-relays.yaml](firmware/waveshare-relays.yaml))
+get two extras.
+
+**Finding boards.** The firmware advertises itself over mDNS. When you open the
+plugin's configuration, the boards found on the network are listed at the top,
+marked "not added yet" where they aren't configured, and offered as suggestions
+for **Board address**. Boards with other ESPHome configs can still be added by
+address.
+
+**Admin password.** The password is stored on the board, not compiled into the
+firmware, so every board starts out open: anyone on the network can switch it, and
+its LED pulses amber. Enter a password (8–63 characters) under **Admin password**
+and the plugin sets it on the board. From then on the board's web UI, relay control
+and OTA updates need user `admin` with that password, and it becomes the Wi-Fi key
+of the board's setup access point. To change the password,
+change it in the plugin; the plugin remembers the previous one and changes it on
+the board too.
+
+If the password is forgotten, hold the board's **BOOT** button for 10 seconds, then
+release it. The LED shows red briefly, the password is cleared and the board is
+open again. If the plugin has a password configured,
+it sets it again straight away.
+
+The plugin status shows whether the board is open, the password was set or
+changed, or the board rejected the configured password.
 
 ## NMEA 2000
 
