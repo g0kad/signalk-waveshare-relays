@@ -95,7 +95,7 @@ test('event stream publishes initial state and PUT switches a relay', async (t) 
   const plugin = createPlugin(app)
   t.after(async () => { plugin.stop(); await device.close() })
 
-  plugin.start({ host: device.host, pollInterval: 0 })
+  plugin.start({ boards: [{ host: device.host, pollInterval: 0 }] })
   await waitFor(() => app.latest(path(8)) === false)
   assert.match(app.status, /live updates/)
   assert.strictEqual(Object.keys(app.puts).length, 8)
@@ -115,7 +115,7 @@ test('invalid PUT value is rejected without touching the board', async (t) => {
   const plugin = createPlugin(app)
   t.after(async () => { plugin.stop(); await device.close() })
 
-  plugin.start({ host: device.host, pollInterval: 0, useEventStream: false })
+  plugin.start({ boards: [{ host: device.host, pollInterval: 0, useEventStream: false }] })
   const result = app.puts[path(1)]('vessels.self', path(1), 'maybe', () => {})
   assert.strictEqual(result.statusCode, 400)
   assert.strictEqual(device.switches.get('Relay 1'), false)
@@ -128,7 +128,7 @@ test('polling publishes all relays as numbers when configured', async (t) => {
   const plugin = createPlugin(app)
   t.after(async () => { plugin.stop(); await device.close() })
 
-  plugin.start({ host: device.host, useEventStream: false, stateFormat: 'number', bankId: 'deck' })
+  plugin.start({ stateFormat: 'number', boards: [{ host: device.host, useEventStream: false, bankId: 'deck' }] })
   const p = n => `electrical.switches.bank.deck.${n}.state`
   await waitFor(() => /polling every 10 s/.test(app.status))
   assert.strictEqual(app.latest(p(5)), 1)
@@ -144,7 +144,7 @@ test('unreachable board reports a plugin error', async (t) => {
   const plugin = createPlugin(app)
   t.after(() => plugin.stop())
 
-  plugin.start({ host, useEventStream: false })
+  plugin.start({ boards: [{ host, useEventStream: false }] })
   await waitFor(() => app.error)
   assert.match(app.error, /Cannot reach/)
 })
@@ -157,7 +157,7 @@ test('NMEA 2000 127502 switches the board and 127501 reports it', async (t) => {
   const plugin = createPlugin(app)
   t.after(async () => { plugin.stop(); await device.close() })
 
-  plugin.start({ host: device.host, pollInterval: 0, nmea2000: { enabled: true, instance: 4 } })
+  plugin.start({ boards: [{ host: device.host, pollInterval: 0, nmea2000: { enabled: true, instance: 4 } }] })
   await waitFor(() => sent.some(m => m.fields.indicator8 === 'Off'))
 
   app.emit('N2KAnalyzerOut', { pgn: 127502, src: 20, dst: 255, fields: { instance: 4, switch2: 'On' } })
@@ -170,4 +170,76 @@ test('missing host reports a configuration error', () => {
   const app = fakeApp()
   createPlugin(app).start({})
   assert.match(app.error, /board address/)
+})
+
+test('multiple boards are controlled independently', async (t) => {
+  const fwd = await mockEsphome()
+  const aft = await mockEsphome()
+  const app = fakeApp()
+  const plugin = createPlugin(app)
+  t.after(async () => { plugin.stop(); await fwd.close(); await aft.close() })
+
+  plugin.start({
+    boards: [
+      { host: fwd.host, bankId: 'fwd', pollInterval: 0 },
+      { host: aft.host, bankId: 'aft', pollInterval: 0 }
+    ]
+  })
+  const p = (bank, n) => `electrical.switches.bank.${bank}.${n}.state`
+  await waitFor(() => app.latest(p('fwd', 8)) === false && app.latest(p('aft', 8)) === false)
+  assert.strictEqual(Object.keys(app.puts).length, 16)
+  await waitFor(() => /fwd: Connected.*live updates.*; aft: Connected.*live updates/.test(app.status))
+
+  const result = await new Promise(resolve => app.puts[p('aft', 6)]('vessels.self', p('aft', 6), 'on', resolve))
+  assert.strictEqual(result.statusCode, 200)
+  assert.strictEqual(aft.switches.get('Relay 6'), true)
+  assert.strictEqual(fwd.switches.get('Relay 6'), false)
+  assert.strictEqual(app.latest(p('aft', 6)), true)
+  assert.strictEqual(app.latest(p('fwd', 6)), false)
+})
+
+test('one unreachable board is reported without stopping the others', async (t) => {
+  const good = await mockEsphome()
+  const gone = await mockEsphome()
+  await gone.close()
+  const app = fakeApp()
+  const plugin = createPlugin(app)
+  t.after(async () => { plugin.stop(); await good.close() })
+
+  plugin.start({
+    boards: [
+      { host: good.host, bankId: 'good', useEventStream: false },
+      { host: gone.host, bankId: 'gone', useEventStream: false }
+    ]
+  })
+  await waitFor(() => /gone: Cannot reach/.test(app.error) && /good: Connected/.test(app.error))
+  assert.strictEqual(app.latest('electrical.switches.bank.good.1.state'), false)
+})
+
+test('duplicate bank IDs and N2K instances are rejected', async (t) => {
+  const a = await mockEsphome()
+  const b = await mockEsphome()
+  const c = await mockEsphome()
+  const app = fakeApp()
+  const sent = []
+  app.on('nmea2000JsonOut', msg => sent.push(msg))
+  const plugin = createPlugin(app)
+  t.after(async () => { plugin.stop(); await a.close(); await b.close(); await c.close() })
+
+  plugin.start({
+    boards: [
+      { host: a.host, bankId: 'one', pollInterval: 0, nmea2000: { enabled: true, instance: 2 } },
+      { host: b.host, bankId: 'one', pollInterval: 0 },
+      { host: c.host, bankId: 'three', pollInterval: 0, nmea2000: { enabled: true, instance: 2 } },
+      { host: c.host, bankId: 'off', enabled: false }
+    ]
+  })
+  assert.match(app.error, /one: bank ID is used by another board/)
+  assert.match(app.error, /three: NMEA 2000 instance 2 is used by another board/)
+  assert.doesNotMatch(app.error, /off:/)
+  // 'three' still runs as a Signal K bank, just without N2K.
+  await waitFor(() => app.latest('electrical.switches.bank.three.1.state') === false)
+  await waitFor(() => sent.length > 0)
+  assert.ok(sent.every(m => m.fields.instance === 2))
+  assert.strictEqual(Object.keys(app.puts).length, 16)
 })

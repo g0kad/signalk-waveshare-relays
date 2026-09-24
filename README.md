@@ -3,7 +3,7 @@
 A Signal K server plugin for the Waveshare **ESP32-S3-ETH-8DI-8RO** relay boards
 (the `-C` cased version too) running **ESPHome** firmware with the `web_server` component.
 
-- Switches the 8 relays through standard Signal K PUT requests, so it works with KIP,
+- Switches the relays on one or more boards through standard Signal K PUT requests, so it works with KIP,
   WilhelmSK and any other app that can toggle `electrical.switches`.
 - Updates state instantly from ESPHome's event stream, with periodic polling
   as a fallback.
@@ -24,27 +24,40 @@ A Signal K server plugin for the Waveshare **ESP32-S3-ETH-8DI-8RO** relay boards
 | `electrical.switches.bank.<bankId>.<channel>.state` | relay state | yes |
 | `electrical.digitalInputs.<bankId>.<channel>.state` | input state (optional) | no |
 
-The default `bankId` is `waveshare`. Values are `true`/`false` unless you set the
+Each board has its own `bankId` (the default is `waveshare`). Values are `true`/`false` unless you set the
 **State value format** option to `1 / 0`. A PUT accepts `true`/`false`, `1`/`0` or
 `"on"`/`"off"`. Each path also gets a `displayName` in its meta, taken from the configuration.
 
 ## Configuration
 
+Add one entry under **Boards** for each Waveshare board. Each board has its own
+settings:
+
 | Setting | Default | Notes |
 |---|---|---|
+| Enabled | on | Turn a board off without deleting its settings |
 | Board address | *(required)* | IP address or hostname, e.g. `192.168.1.129` or `waveshare001.local` |
+| Bank ID | `waveshare` | Must be different for each board, e.g. `fwd` and `aft` |
 | Web server username / password | empty | Only if `auth:` is set under `web_server:` in ESPHome |
-| Bank ID | `waveshare` | Use a different ID for each board if you have more than one |
-| State value format | `true / false` | |
 | Use event stream | on | Instant updates through ESPHome's `/events` |
 | Poll interval | 10 s | Full refresh; `0` disables polling |
 | Relays | `Relay 1` … `Relay 8` | Channel number, ESPHome switch name, display name |
 | Publish digital inputs | off | |
 | Digital inputs | `DI1` … `DI8` | Channel number, ESPHome binary_sensor name, display name |
-
 | NMEA 2000 switch bank → Enable | off | |
 | NMEA 2000 switch bank → Switch bank instance | 0 | 0–252; must be unique among switch banks on the bus |
-| NMEA 2000 switch bank → Status interval | 5 s | How often 127501 repeats; it's also sent on every change |
+
+These settings apply to all boards:
+
+| Setting | Default | Notes |
+|---|---|---|
+| State value format | `true / false` | Or `1 / 0` |
+| NMEA 2000 status interval | 5 s | How often 127501 repeats; it's also sent on every change |
+
+If two boards share a bank ID, the second one isn't started. If two boards share an
+N2K instance, the second one runs without N2K. Both cases, and any board that
+can't be reached, show up in the plugin's status in the admin UI. The other boards
+keep working.
 
 The ESPHome entity names must match the `name:` values in the board's ESPHome YAML.
 With the plugin's debug logging on, every entity on the board that isn't mapped is
@@ -60,7 +73,7 @@ make the board appear as a binary switch bank:
   Channels marked "no change" are left alone. Channel numbers are the ones in the
   Relays table (1–28).
 - **PGN 127501 Binary Switch Bank Status** goes out on every change, in reply to
-  every command, and every *Status interval*. When the board can't be reached,
+  every command, and every *NMEA 2000 status interval*. When the board can't be reached,
   every channel is reported as `Unavailable`.
 
 Any N2K device that uses the standard 127501/127502 switching PGNs can control the

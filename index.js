@@ -28,15 +28,22 @@ const channelItems = (entityTitle, entityDescription) => ({
   }
 })
 
-const schema = {
+const boardSchema = {
   type: 'object',
-  required: ['host'],
+  required: ['host', 'bankId'],
   properties: {
+    enabled: { type: 'boolean', title: 'Enabled', default: true },
     host: {
       type: 'string',
       title: 'Board address',
       description: 'IP address or hostname of the Waveshare board, e.g. 192.168.1.129 or waveshare001.local',
       default: ''
+    },
+    bankId: {
+      type: 'string',
+      title: 'Bank ID',
+      description: 'Unique per board. Relays are published at electrical.switches.bank.<Bank ID>.<channel>.state',
+      default: 'waveshare'
     },
     username: {
       type: 'string',
@@ -45,19 +52,6 @@ const schema = {
       default: ''
     },
     password: { type: 'string', title: 'Web server password', default: '' },
-    bankId: {
-      type: 'string',
-      title: 'Bank ID',
-      description: 'Relays are published at electrical.switches.bank.<Bank ID>.<channel>.state',
-      default: 'waveshare'
-    },
-    stateFormat: {
-      type: 'string',
-      title: 'State value format',
-      enum: ['boolean', 'number'],
-      enumNames: ['true / false', '1 / 0'],
-      default: 'boolean'
-    },
     useEventStream: {
       type: 'boolean',
       title: 'Use the ESPHome event stream for instant state updates',
@@ -101,34 +95,47 @@ const schema = {
           minimum: 0,
           maximum: 252,
           default: 0
-        },
-        statusInterval: {
-          type: 'number',
-          title: 'Status interval (seconds)',
-          description: 'How often PGN 127501 is repeated; it is also sent on every change',
-          minimum: 1,
-          default: 5
         }
       }
     }
   }
 }
 
-function withDefaults (options) {
-  const opts = {}
-  for (const [key, prop] of Object.entries(schema.properties)) {
-    opts[key] = options && options[key] !== undefined ? options[key] : prop.default
+const schema = {
+  type: 'object',
+  properties: {
+    boards: {
+      type: 'array',
+      title: 'Boards',
+      items: boardSchema,
+      default: [{}]
+    },
+    stateFormat: {
+      type: 'string',
+      title: 'State value format',
+      enum: ['boolean', 'number'],
+      enumNames: ['true / false', '1 / 0'],
+      default: 'boolean'
+    },
+    n2kStatusInterval: {
+      type: 'number',
+      title: 'NMEA 2000 status interval (seconds)',
+      description: 'How often PGN 127501 is repeated for each N2K-enabled board; it is also sent on every change',
+      minimum: 1,
+      default: 5
+    }
   }
-  const n2k = schema.properties.nmea2000.properties
-  opts.nmea2000 = Object.fromEntries(Object.entries(n2k).map(([key, prop]) => {
-    const value = opts.nmea2000 && opts.nmea2000[key]
-    return [key, value !== undefined ? value : prop.default]
-  }))
-  opts.host = String(opts.host || '').trim()
-  opts.bankId = String(opts.bankId || '').trim() || 'waveshare'
-  opts.relays = validChannels(opts.relays)
-  opts.inputs = validChannels(opts.inputs)
-  return opts
+}
+
+// Fills in schema defaults, recursing into nested objects (not arrays).
+function applyDefaults (properties, value) {
+  const out = {}
+  for (const [key, prop] of Object.entries(properties)) {
+    const v = value ? value[key] : undefined
+    if (prop.type === 'object' && prop.properties) out[key] = applyDefaults(prop.properties, v)
+    else out[key] = v !== undefined ? v : prop.default
+  }
+  return out
 }
 
 function validChannels (list) {
@@ -140,36 +147,80 @@ function validChannels (list) {
   })
 }
 
+function normalize (options) {
+  const opts = applyDefaults(schema.properties, options)
+  opts.boards = (Array.isArray(opts.boards) ? opts.boards : []).map(raw => {
+    const board = applyDefaults(boardSchema.properties, raw)
+    board.host = String(board.host || '').trim()
+    board.bankId = String(board.bankId || '').trim()
+    board.relays = validChannels(board.relays)
+    board.inputs = validChannels(board.inputs)
+    board.stateFormat = opts.stateFormat
+    board.nmea2000.statusInterval = opts.n2kStatusInterval
+    return board
+  })
+  return opts
+}
+
 module.exports = function (app) {
-  let bank = null
-  let n2k = null
+  let runs = []
+  let problems = []
 
   const plugin = {
     id: PLUGIN_ID,
     name: 'Waveshare Relay Control',
-    description: 'Control Waveshare ESP32-S3-ETH-8DI-8RO relays (ESPHome firmware) from Signal K',
+    description: 'Control Waveshare ESP32-S3-ETH-8DI-8RO relays (ESPHome firmware) from Signal K and NMEA 2000',
     schema
   }
 
+  function reportStatus () {
+    const parts = [...problems, ...runs.map(r => `${r.bank.opts.bankId}: ${r.bank.status.text}`)]
+    if (!parts.length) return app.setPluginStatus('No boards enabled')
+    if (problems.length || runs.some(r => r.bank.status.error)) app.setPluginError(parts.join('; '))
+    else app.setPluginStatus(parts.join('; '))
+  }
+
   plugin.start = function (options) {
-    const opts = withDefaults(options)
-    if (!opts.host) {
-      app.setPluginError('Set the board address in the plugin configuration')
-      return
-    }
-    bank = new RelayBank(app, PLUGIN_ID, opts)
-    bank.start()
-    if (opts.nmea2000.enabled) {
-      n2k = new N2kSwitchBank(app, bank, opts.nmea2000)
-      n2k.start()
-    }
+    const opts = normalize(options)
+    const bankIds = new Set()
+    const instances = new Set()
+    runs = []
+    problems = []
+
+    opts.boards.forEach((board, i) => {
+      const label = board.bankId || `Board ${i + 1}`
+      if (!board.enabled) return
+      if (!board.host) return problems.push(`${label}: set the board address`)
+      if (!board.bankId) return problems.push(`${label}: set a bank ID`)
+      if (bankIds.has(board.bankId)) return problems.push(`${label}: bank ID is used by another board`)
+      bankIds.add(board.bankId)
+
+      const bank = new RelayBank(app, PLUGIN_ID, board)
+      bank.on('status', reportStatus)
+      const run = { bank, n2k: null }
+      runs.push(run)
+      bank.start()
+
+      if (board.nmea2000.enabled) {
+        if (instances.has(board.nmea2000.instance)) {
+          problems.push(`${label}: NMEA 2000 instance ${board.nmea2000.instance} is used by another board`)
+        } else {
+          instances.add(board.nmea2000.instance)
+          run.n2k = new N2kSwitchBank(app, bank, board.nmea2000)
+          run.n2k.start()
+        }
+      }
+    })
+    reportStatus()
   }
 
   plugin.stop = function () {
-    if (n2k) n2k.stop()
-    if (bank) bank.stop()
-    n2k = null
-    bank = null
+    for (const { bank, n2k } of runs) {
+      if (n2k) n2k.stop()
+      bank.stop()
+    }
+    runs = []
+    problems = []
   }
 
   return plugin
