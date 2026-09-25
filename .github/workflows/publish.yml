@@ -30,8 +30,19 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
             exit 1
           fi
-      - run: npm install --no-audit --no-fund
-      - run: npm test
+      - name: Check whether this version is already on npm
+        id: published
+        run: |
+          if npm view "$(node -p "require('./package.json').name")@${GITHUB_REF_NAME#v}" version >/dev/null 2>&1; then
+            echo "::notice::$GITHUB_REF_NAME is already on npm, nothing to publish"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.published.outputs.exists != 'true'
+        run: npm install --no-audit --no-fund
+      - if: steps.published.outputs.exists != 'true'
+        run: npm test
       # Trusted publishing needs npm 11.5.1 or newer
-      - run: npm install -g npm@latest
-      - run: npm publish --access public
+      - if: steps.published.outputs.exists != 'true'
+        run: npm install -g npm@latest
+      - if: steps.published.outputs.exists != 'true'
+        run: npm publish --access public
