@@ -1,12 +1,13 @@
 {
   "name": "signalk-waveshare-relays",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Signal K plugin to control Waveshare ESP32-S3-ETH-8DI-8RO relay boards running ESPHome",
   "main": "index.js",
   "files": [
     "index.js",
     "lib/",
-    "assets/"
+    "assets/",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "test": "node --test"

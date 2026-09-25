@@ -2,6 +2,10 @@
 
 ## Plugin
 
+### 0.1.1 (2026-09-25)
+
+- Include this changelog in the npm package, so the App Store shows it.
+
 ### 0.1.0 (2026-09-25)
 
 First public test release.
