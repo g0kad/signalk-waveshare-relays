@@ -1,5 +1,9 @@
 # signalk-waveshare-relays
 
+> **Test release.** This plugin works on the author's boat, and now needs testing on
+> other setups. Please [report problems and ideas](https://github.com/g0kad/signalk-waveshare-relays/issues),
+> including "it works" with your setup.
+
 A Signal K server plugin for the Waveshare **ESP32-S3-ETH-8DI-8RO** relay boards
 (the `-C` cased version too) running **ESPHome** firmware with the `web_server` component.
 
@@ -16,6 +20,19 @@ A Signal K server plugin for the Waveshare **ESP32-S3-ETH-8DI-8RO** relay boards
 - Signal K server running on Node.js 18 or newer
 - The board running ESPHome with `web_server:` enabled (v2 or v3), reachable from the
   Signal K server
+
+## Installing
+
+1. **Put ESPHome on the board.** The easiest way is the prebuilt firmware: connect
+   the board over USB-C and install it from the browser with the
+   [web installer](https://g0kad.github.io/signalk-waveshare-relays/) (Chrome or Edge on a
+   desktop computer). See [Prebuilt firmware](#prebuilt-firmware). Your own ESPHome config
+   works too, as long as it has `web_server:` enabled.
+2. **Install the plugin.** In the Signal K admin UI, go to **Appstore → Available**, search
+   for *Waveshare Relays*, install it and restart the server.
+3. **Add the board.** Open **Server → Plugin Config → Waveshare Relays**. Boards running the
+   prebuilt firmware are listed at the top. Add each board under **Boards**, set an admin
+   password, and enable the plugin.
 
 ## Signal K paths
 
@@ -114,11 +131,17 @@ If the Signal K server also reads the bus, it converts the bank's own 127501 int
 `electrical.switches.bank.<instance>.*`. Don't set **Bank ID** to the same number
 as the N2K instance, or the two sources will write to the same paths.
 
-## Migrating from the Node-RED flow
+## Testing and feedback
 
-This plugin replaces the "Waveshare Relays (HTTP)" Node-RED flow and uses the
-same paths. **Disable that flow before enabling the plugin.** Otherwise both
-register PUT handlers on the same paths and both poll the board.
+Reports from other boats are the most useful thing right now. When reporting a
+problem, please include:
+
+- plugin, Signal K server and firmware versions
+- whether you use the prebuilt firmware or your own ESPHome config
+- the plugin's status line, and the server log with debug turned on for this plugin
+
+The [issue form](https://github.com/g0kad/signalk-waveshare-relays/issues/new/choose)
+asks for these.
 
 ## Development
 
@@ -127,3 +150,12 @@ npm test
 ```
 
 The tests run against a mock ESPHome web server and need no hardware.
+
+### Releasing
+
+- **Plugin:** update `version` in `package.json` and `CHANGELOG.md`, then push a tag
+  `v<version>`. The *Publish to npm* workflow publishes it, and the Signal K App Store
+  picks it up from npm.
+- **Firmware:** update both `version:` values in `firmware/waveshare-relays.yaml`, then push
+  a tag `firmware-v<version>`. The *Firmware* workflow builds it, attaches the binaries to a
+  GitHub release and updates the web installer.

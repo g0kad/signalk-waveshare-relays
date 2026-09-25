@@ -1,0 +1,16 @@
+name: Suggestion
+description: An idea or a change you'd like
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: What you want to do, and how you'd expect it to work.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Your setup
+      description: Optional. Boards, apps and displays you use, if it helps explain the idea.

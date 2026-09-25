@@ -1,0 +1,55 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin version
+      description: Shown in the Signal K admin UI under Appstore → Installed.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: Signal K server version
+      placeholder: 2.33.0
+    validations:
+      required: true
+  - type: dropdown
+    id: firmware
+    attributes:
+      label: Board firmware
+      options:
+        - This project's prebuilt firmware
+        - My own ESPHome config
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: firmware-version
+    attributes:
+      label: Firmware version
+      description: Prebuilt firmware only. Shown on the board's web page.
+      placeholder: 0.3.0
+  - type: dropdown
+    id: n2k
+    attributes:
+      label: Is the NMEA 2000 switch bank enabled?
+      options: ['No', 'Yes']
+  - type: textarea
+    id: log
+    attributes:
+      label: Plugin status and log
+      description: >
+        The plugin's status line from Server → Plugin Config, and the log with
+        debug turned on for this plugin (Server → Server Log). Remove any passwords.
+      render: text

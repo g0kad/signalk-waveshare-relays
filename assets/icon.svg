@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="48" fill="#0b4f6c"/>
+  <rect x="36" y="44" width="184" height="168" rx="16" fill="#e8f1f5"/>
+  <g fill="#0b4f6c">
+    <rect x="60" y="64" width="32" height="56" rx="16"/>
+    <rect x="112" y="64" width="32" height="56" rx="16"/>
+    <rect x="164" y="64" width="32" height="56" rx="16"/>
+    <rect x="60" y="136" width="32" height="56" rx="16"/>
+    <rect x="112" y="136" width="32" height="56" rx="16"/>
+    <rect x="164" y="136" width="32" height="56" rx="16"/>
+  </g>
+  <!-- Knobs: amber = on (up), light = off (down) -->
+  <g fill="#f5b700">
+    <circle cx="76" cy="80" r="11"/>
+    <circle cx="180" cy="80" r="11"/>
+    <circle cx="128" cy="152" r="11"/>
+  </g>
+  <g fill="#e8f1f5">
+    <circle cx="128" cy="104" r="11"/>
+    <circle cx="76" cy="176" r="11"/>
+    <circle cx="180" cy="176" r="11"/>
+  </g>
+</svg>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waveshare Relays Installer</title>
+  <meta name="description" content="Install the Signal K relay board firmware on a Waveshare ESP32-S3-ETH-8DI-8RO from your browser.">
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    :root {
+      --bg: #f6f8fa; --fg: #1b1f24; --muted: #57606a; --card: #ffffff;
+      --border: #d0d7de; --accent: #0b4f6c; --warn-bg: #fff8e1; --warn-border: #f5b700;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117; --fg: #e6edf3; --muted: #9da7b3; --card: #161b22;
+        --border: #30363d; --accent: #58a6d8; --warn-bg: #2b2410; --warn-border: #b38600;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 1.7rem; margin: 0 0 4px; }
+    h2 { font-size: 1.15rem; margin: 32px 0 8px; }
+    .sub { color: var(--muted); margin: 0 0 24px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+    .version { color: var(--muted); font-size: .9rem; margin-top: 12px; }
+    .note { background: var(--warn-bg); border-left: 4px solid var(--warn-border); padding: 10px 14px; border-radius: 6px; margin-top: 16px; }
+    ol { padding-left: 1.3em; }
+    li { margin: 6px 0; }
+    a { color: var(--accent); }
+    code { font-size: .9em; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+    esp-web-install-button button[slot="activate"] {
+      background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+      padding: 10px 20px; font: inherit; font-weight: 600; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Waveshare Relays for Signal K</h1>
+  <p class="sub">Firmware for the Waveshare ESP32-S3-ETH-8DI-8RO relay board, for use with the
+    <a href="https://github.com/g0kad/signalk-waveshare-relays">signalk-waveshare-relays</a> plugin.</p>
+
+  <div class="card">
+    <esp-web-install-button manifest="manifest.json">
+      <button slot="activate">Connect and install</button>
+      <span slot="unsupported">Your browser can't install firmware. Use Chrome or Edge on a desktop or laptop.</span>
+      <span slot="not-allowed">The installer needs a secure (https) page.</span>
+    </esp-web-install-button>
+    <div class="version">Firmware version {{VERSION}}</div>
+    <div class="note">Installing erases the board, including any admin password stored on it.
+      To update a board that already runs this firmware and keep its settings, use the OTA method below.</div>
+  </div>
+
+  <h2>New board</h2>
+  <ol>
+    <li>Connect the board's USB-C port to this computer.</li>
+    <li>Click <strong>Connect and install</strong> and pick the board's serial port. If no port appears,
+      hold the <strong>BOOT</strong> button, press and release <strong>RESET</strong>, then release BOOT and try again.</li>
+    <li>When the installer finishes it offers to set up Wi-Fi. Enter your network, or skip it and use Ethernet.
+      If you skip it, the board also starts a <code>Waveshare Relays Setup</code> access point after 90 seconds with no network.</li>
+    <li>Install the <strong>Waveshare Relays</strong> plugin from the Signal K App Store. The board is listed at the top
+      of the plugin's settings. Add it and set an admin password.</li>
+  </ol>
+
+  <h2>Updating a board</h2>
+  <ol>
+    <li>Download <code>waveshare-relays-{{VERSION}}.ota.bin</code> from the
+      <a href="https://github.com/g0kad/signalk-waveshare-relays/releases/tag/firmware-v{{VERSION}}">release page</a>.</li>
+    <li>Open the board's web page, for example <code>http://waveshare-relays-xxxxxx.local</code>, and log in as
+      <code>admin</code> with the password set in the plugin.</li>
+    <li>Upload the file under <strong>OTA Update</strong>. The board restarts with the new version and keeps its
+      network settings and admin password.</li>
+  </ol>
+
+  <h2>Problems and feedback</h2>
+  <p>Please report problems and suggestions on
+    <a href="https://github.com/g0kad/signalk-waveshare-relays/issues">GitHub</a>.</p>
+</main>
+</body>
+</html>
