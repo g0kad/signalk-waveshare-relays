@@ -15,6 +15,10 @@ A Signal K server plugin for the Waveshare **ESP32-S3-ETH-8DI-8RO** relay boards
 - Optional NMEA 2000 switch bank (PGN 127501 status and 127502 control), so N2K
   displays and keypads can switch the relays.
 
+- Reported to also work with a generic ESP32 8-relay board (LC Relay-ESP-8R-D5) on a custom ESPHome config.
+  Please try other ESPHome relay boards with web_server enabled added by address.  Feedback very welcome.
+
+
 ## Requirements
 
 - Signal K server running on Node.js 18 or newer
